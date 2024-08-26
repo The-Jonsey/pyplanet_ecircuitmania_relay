@@ -96,15 +96,12 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
                     "finishTime": player["prevracetime"],
                     "position": i + 1
                 })
-                # await self.instance.chat(f"{player}")
-                await self.instance.chat(f"{self.instance.map_manager.current_map.uid}")
-                await self.instance.chat(f"{i + 1}. {player['player_account_id']}: {player['prevracetime']}")
             logger.info(payload)
-            # r = requests.post("https://us-central1-fantasy-trackmania.cloudfunctions.net/match-addRound", params=dict(matchId=self.matchId), json=payload, headers=dict(Authorization=self.token))
-            # if r.status_code != 200:
-            #     for player in self.instance.player_manager.online:
-            #         if self.instance.permission_manager.has_permission(player, self.startPerm):
-            #             await self.instance.chat(f"Error with connection to ECM, data-loss may occur", player)
+            r = requests.post("https://us-central1-fantasy-trackmania.cloudfunctions.net/match-addRound", params=dict(matchId=self.matchId), json=payload, headers=dict(Authorization=self.token))
+            if r.status_code != 201:
+                for player in self.instance.player_manager.online:
+                    if await self.instance.permission_manager.has_permission(player, self.startPerm):
+                        await self.instance.chat(f"Error with connection to ECM, data-loss may occur", player)
 
     def __comparePlayersByRaceTime(self, player1, player2) -> int:
         if player1["prevracetime"] == player2["prevracetime"]:
@@ -118,10 +115,11 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
         return self.__comparePlayersByName(player1, player2)
 
     def __comparePlayersByName(self, player1, player2) -> int:
-        if player1["player"].name < player2["player"].name:
+        if player1['player'].nickname < player2['player'].nickname:
             return -1
         return 1
 
     def __handleDNF(self, finTime) -> int:
         if finTime == -1:
             return sys.maxsize
+        return finTime

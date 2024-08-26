@@ -51,8 +51,16 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
             nargs="1",
             type=str,
             required=True,
-            help="The token provided by ECM, probably contains an underscore in the middle"
+            help="The token provided by ECM, probably contains an underscore in the middle"))
+        await self.instance.command_manager.register(Command(
+            namespace="ecm",
+            command="stop",
+            target=self.stop,
+            admin=True,
+            description="Stop the connection to ECM",
+            perms=["ecm:start"]
         ))
+
 
     async def on_stop(self):
         await super().on_stop()
@@ -68,6 +76,12 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
         self.matchId = parts[0]
         self.token = parts[1]
         await self.instance.chat("E-Circuitmania connection activated")
+
+    async def stop(self, player, data, *args, **kwargs):
+        self.matchId = ""
+        self.token = ""
+        await self.instance.chat("E-Circuitmania connection closed")
+
 
     async def server_end(self, restarted, time):
         self.matchId = ""

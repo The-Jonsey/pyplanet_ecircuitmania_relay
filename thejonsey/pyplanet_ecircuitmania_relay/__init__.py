@@ -100,6 +100,7 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
         if section == "PreEndRound" and self.matchId != "" and self.token != "":
             payload = {"mapId": self.instance.map_manager.current_map.uid, "roundNum": self.roundNo, "players": []}
             sortedPlayers = sorted(players, key=cmp_to_key(self.__comparePlayersByRaceTime))
+            position = 1
             for i in range(len(sortedPlayers)):
                 player = sortedPlayers[i]
                 if player["player"].flow.is_spectator:
@@ -108,8 +109,9 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
                 payload["players"].append({
                     "ubisoftUid": player["player_account_id"],
                     "finishTime": player["prevracetime"],
-                    "position": i + 1
+                    "position": position
                 })
+                position += 1
             logger.info(payload)
             r = requests.post("https://us-central1-fantasy-trackmania.cloudfunctions.net/match-addRound", params=dict(matchId=self.matchId), json=payload, headers=dict(Authorization=self.token))
             if r.status_code != 201:

@@ -23,6 +23,8 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
     matchId = ""
     token = ""
 
+    validPlayers = {}
+
     startPerm = None
 
     def __init__(self, *args, **kwargs):
@@ -34,6 +36,7 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
     async def on_start(self):
         await super().on_start()
         self.context.signals.listen(mp_signals.flow.round_start, self.round_start)
+        self.context.signals.listen(tm_signals.start_line, self.start_line)
         self.context.signals.listen(tm_signals.scores, self.scores)
         self.context.signals.listen(mp_signals.flow.match_end, self.match_end)
         self.context.signals.listen(mp_signals.flow.server_end, self.server_end)
@@ -75,26 +78,38 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
         parts = data.token.split("_")
         self.matchId = parts[0]
         self.token = parts[1]
-        await self.instance.chat("E-Circuitmania connection activated")
+        for player in self.instance.player_manager.online:
+            if await self.instance.permission_manager.has_permission(player, self.startPerm):
+                await self.instance.chat("E-Circuitmania connection activated", player)
 
     async def stop(self, player, data, *args, **kwargs):
         self.matchId = ""
         self.token = ""
-        await self.instance.chat("E-Circuitmania connection closed")
+        for player in self.instance.player_manager.online:
+            if await self.instance.permission_manager.has_permission(player, self.startPerm):
+                await self.instance.chat("E-Circuitmania connection closed", player)
 
 
     async def server_end(self, restarted, time):
         self.matchId = ""
         self.token = ""
-        await self.instance.chat("E-Circuitmania connection closed")
+        for player in self.instance.player_manager.online:
+            if await self.instance.permission_manager.has_permission(player, self.startPerm):
+                await self.instance.chat("E-Circuitmania connection closed", player)
 
     async def match_end(self, count, time):
         self.matchId = ""
         self.token = ""
-        await self.instance.chat("E-Circuitmania connection closed")
+        for player in self.instance.player_manager.online:
+            if await self.instance.permission_manager.has_permission(player, self.startPerm):
+                await self.instance.chat("E-Circuitmania connection closed", player)
 
     async def round_start(self, count, time, valid):
         self.roundNo = valid
+        self.validPlayers = {}
+
+    async def start_line(self, time, player, flow):
+        self.validPlayers[player.login] = 0
 
     async def scores(self, players, teams, winner_team, use_teams, winner_player, section):
         if section == "PreEndRound" and self.matchId != "" and self.token != "":
@@ -103,7 +118,7 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
             position = 1
             for i in range(len(sortedPlayers)):
                 player = sortedPlayers[i]
-                if player["player"].flow.is_spectator:
+                if player["player"].flow.is_spectator or not (player["player"].login in self.validPlayers):
                     continue
                 logger.info(player)
                 payload["players"].append({
@@ -113,8 +128,15 @@ class PyplanetECircuitmaniaRelayApp(AppConfig):
                 })
                 position += 1
             logger.info(payload)
-            r = requests.post("https://us-central1-fantasy-trackmania.cloudfunctions.net/match-addRound", params=dict(matchId=self.matchId), json=payload, headers=dict(Authorization=self.token))
-            if r.status_code != 201:
+            success = False
+            attempts = 0
+            while not success and attempts < 3:
+                r = requests.post("https://us-central1-fantasy-trackmania.cloudfunctions.net/match-addRound", params=dict(matchId=self.matchId), json=payload, headers=dict(Authorization=self.token))
+                if r.status_code == 201:
+                    success = True
+                else:
+                    attempts += 1
+            if not success:
                 for player in self.instance.player_manager.online:
                     if await self.instance.permission_manager.has_permission(player, self.startPerm):
                         await self.instance.chat(f"Error with connection to ECM, data-loss may occur", player)
